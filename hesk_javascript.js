@@ -1,57 +1,34 @@
-/*******************************************************************************
-*  Title: Help Desk Software HESK
-*  Version: 2.6.4 from 22nd June 2015
-*  Author: Klemen Stirn
-*  Website: http://www.hesk.com
-********************************************************************************
-*  COPYRIGHT AND TRADEMARK NOTICE
-*  Copyright 2005-2015 Klemen Stirn. All Rights Reserved.
-*  HESK is a registered trademark of Klemen Stirn.
-
-*  The HESK may be used and modified free of charge by anyone
-*  AS LONG AS COPYRIGHT NOTICES AND ALL THE COMMENTS REMAIN INTACT.
-*  By using this code you agree to indemnify Klemen Stirn from any
-*  liability that might arise from it's use.
-
-*  Selling the code for this program, in part or full, without prior
-*  written consent is expressly forbidden.
-
-*  Using this code, in part or full, to create derivate work,
-*  new scripts or products is expressly forbidden. Obtain permission
-*  before redistributing this software over the Internet or in
-*  any other medium. In all cases copyright and header must remain intact.
-*  This Copyright is in full effect in any country that has International
-*  Trade Agreements with the United States of America or
-*  with the European Union.
-
-*  Removing any of the copyright notices without purchasing a license
-*  is expressly forbidden. To remove HESK copyright notice you must purchase
-*  a license for this script. For more information on how to obtain
-*  a license please visit the page below:
-*  https://www.hesk.com/buy.php
-*******************************************************************************/
+/**
+ *
+ * This file is part of HESK - PHP Help Desk Software.
+ *
+ * (c) Copyright Klemen Stirn. All rights reserved.
+ * https://www.hesk.com
+ *
+ * For the full copyright and license agreement information visit
+ * https://www.hesk.com/eula.php
+ *
+ */
 
 function hesk_insertTag(tag) {
-var text_to_insert = '%%'+tag+'%%';
-hesk_insertAtCursor(document.form1.msg, text_to_insert);
-document.form1.message.focus();
+    var text_to_insert = '%%'+tag+'%%';
+    hesk_insertAtCursor(document.form1.msg, text_to_insert);
+    document.form1.msg.focus();
 }
 
 function hesk_insertAtCursor(myField, myValue) {
-if (document.selection) {
-myField.focus();
-sel = document.selection.createRange();
-sel.text = myValue;
-}
-else if (myField.selectionStart || myField.selectionStart == '0') {
-var startPos = myField.selectionStart;
-var endPos = myField.selectionEnd;
-myField.value = myField.value.substring(0, startPos)
-+ myValue
-+ myField.value.substring(endPos, myField.value.length);
-} else {
-myField.value += myValue;
-}
+    if (document.selection) {
+        myField.focus();
+        sel = document.selection.createRange();
+        sel.text = myValue;
+    } else if (myField.selectionStart || myField.selectionStart == '0') {
+        var startPos = myField.selectionStart;
+        var endPos = myField.selectionEnd;
+        myField.value = myField.value.substring(0, startPos) + myValue + myField.value.substring(endPos, myField.value.length);
+        myField.selectionStart = startPos + myValue.length; myField.selectionEnd = startPos + myValue.length;
+    } else {
+        myField.value += myValue;
+    }
 }
 
 function hesk_changeAll(myID) {
@@ -80,6 +57,12 @@ function hesk_attach_enable(ids) {
  for($i=0;$i<ids.length;$i++) {
       document.getElementById(ids[$i]).disabled=false;
  }
+}
+
+function hesk_attach_handle(el, ids) {
+    for($i=0;$i<ids.length;$i++) {
+        document.getElementById(ids[$i]).disabled=!el.checked;
+    }
 }
 
 function hesk_attach_toggle(control,ids) {
@@ -219,7 +202,7 @@ function hesk_suggestKB()
    xmlHttp.send(params);
  }
 
- setTimeout('hesk_suggestKB();', 2000);
+ setTimeout(function() { hesk_suggestKB(); }, 2000);
 
 }
 
@@ -269,13 +252,13 @@ function hesk_suggestKBsearch(isAdmin)
    xmlHttp.send(params);
  }
 
- setTimeout('hesk_suggestKBsearch('+isAdmin+');', 2000);
+ setTimeout(function() { hesk_suggestKBsearch(isAdmin); }, 2000);
 }
 
-function hesk_suggestEmail(isAdmin)
+function hesk_suggestEmail(emailField, displayDiv, padDiv, isAdmin, allowMultiple)
 {
- var email = document.form1.email.value;
- var element = document.getElementById('email_suggestions');
+ var email = document.getElementById(emailField).value;
+ var element = document.getElementById(displayDiv);
 
  if (isAdmin)
  {
@@ -288,7 +271,12 @@ function hesk_suggestEmail(isAdmin)
 
  if (email != '')
  {
-  var params = "e=" + encodeURIComponent( email );
+  var params = "e=" + encodeURIComponent(email) + "&ef=" + encodeURIComponent(emailField) + "&dd=" + encodeURIComponent(displayDiv) + "&pd=" + encodeURIComponent(padDiv);
+
+  if (allowMultiple)
+  {
+   params += "&am=1";
+  }
 
    xmlHttp=GetXmlHttpObject();
    if (xmlHttp==null)
@@ -301,15 +289,45 @@ function hesk_suggestEmail(isAdmin)
 
    xmlHttp.onreadystatechange = function()
    {
-      if (xmlHttp.readyState == 4 && xmlHttp.status == 200)
-      {
-       element.innerHTML = unescape(xmlHttp.responseText);
-       element.style.display = 'block';
-      }
+       if (xmlHttp.readyState === 4 && xmlHttp.status === 200)
+       {
+           element.innerHTML = '';
+        var suggestFormat = '' +
+              '<div class="notification-flash service-message orange" id="{0}" style="display: block; margin-bottom: 10px;">' +
+                '<div class="notification--title">{1}</div>' +
+                '<div class="notification--text">' +
+                    '<a class="link" href="javascript:" onclick="hesk_applyEmailSuggestion(\'{0}\', \'' + emailField + '\', \'{2}\', \'{3}\')">' +
+                        '{4}' +
+                    '</a> | ' +
+                    '<a class="link" href="javascript:void(0);" onclick="document.getElementById(\'{0}\').style.display=\'none\';">' +
+                        '{5}' +
+                    '</a>' +
+                '</div>' +
+              '</div>';
+          var response = JSON.parse(xmlHttp.responseText);
+          for (var i = 0; i < response.length; i++) {
+              var suggestion = response[i];
+              element.innerHTML += suggestFormat.replace(/\{0}/g, suggestion.id)
+                  .replace(/\{1}/g, suggestion.suggestText)
+                  .replace(/\{2}/g, suggestion.originalAddress)
+                  .replace(/\{3}/g, suggestion.formattedSuggestedEmail)
+                  .replace(/\{4}/g, suggestion.yesResponseText)
+                  .replace(/\{5}/g, suggestion.noResponseText);
+              console.log(response[i]);
+          }
+        element.style.display = 'block';
+       }
    }
 
    xmlHttp.send(params);
  }
+}
+
+function hesk_applyEmailSuggestion(emailTypoId, emailField, originalEmail, formattedSuggestedEmail) {
+    var eml = document.getElementById(emailField).value;
+    var regex = new RegExp(originalEmail, "gi");
+    document.getElementById(emailField).value = eml.replace(regex, formattedSuggestedEmail);
+    document.getElementById(emailTypoId).style.display = 'none';
 }
 
 function hesk_btn(Elem, myClass)
@@ -410,37 +428,37 @@ function hesk_contains(password, validChars) {
 
 function setCookie(name, value, expires, path, domain, secure)
 {
-	document.cookie= name + "=" + escape(value) +
-		((expires) ? "; expires=" + expires.toGMTString() : "") +
-		((path) ? "; path=" + path : "") +
-		((domain) ? "; domain=" + domain : "") +
-		((secure) ? "; secure" : "");
+        document.cookie= name + "=" + escape(value) +
+                ((expires) ? "; expires=" + expires.toGMTString() : "") +
+                ((path) ? "; path=" + path : "") +
+                ((domain) ? "; domain=" + domain : "") +
+                ((secure) ? "; secure" : "");
 }
 
 function getCookie(name)
 {
-	var dc = document.cookie;
-	var prefix = name + "=";
-	var begin = dc.indexOf("; " + prefix);
-	if (begin == -1) {
-		begin = dc.indexOf(prefix);
-		if (begin != 0) return null;
-	} else {
-		begin += 2;
-	}
-	var end = document.cookie.indexOf(";", begin);
-	if (end == -1) {
-		end = dc.length;
-	}
-	return unescape(dc.substring(begin + prefix.length, end));
+        var dc = document.cookie;
+        var prefix = name + "=";
+        var begin = dc.indexOf("; " + prefix);
+        if (begin == -1) {
+                begin = dc.indexOf(prefix);
+                if (begin != 0) return null;
+        } else {
+                begin += 2;
+        }
+        var end = document.cookie.indexOf(";", begin);
+        if (end == -1) {
+                end = dc.length;
+        }
+        return unescape(dc.substring(begin + prefix.length, end));
 }
 
 function deleteCookie(name, path, domain)
 {
-	if (getCookie(name)) {
-		document.cookie = name + "=" +
-			((path) ? "; path=" + path : "") +
-			((domain) ? "; domain=" + domain : "") +
-			"; expires=Thu, 01-Jan-70 00:00:01 GMT";
-	}
+        if (getCookie(name)) {
+                document.cookie = name + "=" +
+                        ((path) ? "; path=" + path : "") +
+                        ((domain) ? "; domain=" + domain : "") +
+                        "; expires=Thu, 01-Jan-70 00:00:01 GMT";
+        }
 }
